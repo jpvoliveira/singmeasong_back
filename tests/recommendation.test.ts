@@ -1,154 +1,188 @@
 import { prisma } from '../src/database.js'
 import supertest from 'supertest'
 import app from '../src/app.js'
+import musicFactory from './factories/musicFactory.js'
+import scoreFactory from './factories/scoreFactory.js'
 
-describe('POST /recommendations', ()=>{
-  beforeEach(async()=>{
+describe('POST /recommendations', () => {
+  beforeEach(async () => {
     await prisma.$executeRaw`TRUNCATE TABLE recommendations`;
   })
 
-  afterAll(async()=>{
+  afterAll(async () => {
     await prisma.$disconnect();
   })
 
-  it('should return 201', async()=>{
-    const music = {
-      name: "Falamansa - Xote dos Milagres",
-      youtubeLink: "https://www.youtube.com/watch?v=chwyjJbcs1Y"
-    }
+  it('should return 201', async () => {
+    const music = musicFactory()
 
     const createdMusic = await supertest(app).post('/recommendations').send(music)
-    const result = await prisma.recommendation.findUnique({where:{name: music.name}})
-    
+    const result = await prisma.recommendation.findUnique({ where: { name: music.name } })
+
     expect(result).not.toBeNull()
     expect(createdMusic.status).toEqual(201)
   })
 
-  it('should return 422', async()=>{
+  it('should return 422', async () => {
     const music = {
       name: 123,
-      youtubeLink: "https://www.youtube.com/watch?v=chwyjJbcs1Y"
+      youtubeLink: musicFactory().youtubeLink
     }
 
     const response = await supertest(app).post('/recommendations').send(music)
-    
+
     expect(response.status).toEqual(422)
   })
 
-  it('should return 422', async()=>{
+  it('should return 422', async () => {
     const music = {
-      name: "Falamansa - Xote dos Milagres",
+      name: musicFactory().name,
       youtubeLink: "bananinha"
     }
 
     const response = await supertest(app).post('/recommendations').send(music)
-    
+
     expect(response.status).toEqual(422)
   })
 })
 
-describe('POST /recommendations/:id/upvote', ()=>{
-  beforeEach(async()=>{
+describe('POST /recommendations/:id/upvote', () => {
+  beforeEach(async () => {
     await prisma.$executeRaw`TRUNCATE TABLE recommendations`;
   })
 
-  afterAll(async()=>{
+  afterAll(async () => {
     await prisma.$disconnect();
   })
 
-  it('should return upvote and 200', async()=>{
-    const music = {
-      name: "Falamansa - Xote dos Milagres",
-      youtubeLink: "https://www.youtube.com/watch?v=chwyjJbcs1Y"
-    }
+  it('should return upvote and 200', async () => {
+    const music = musicFactory()
 
-    await prisma.recommendation.create({data: {
-      name: music.name,
-      youtubeLink: music.youtubeLink
-    }})
+    await prisma.recommendation.create({ data: { ...music } })
 
-    const result = await prisma.recommendation.findUnique({where:{name: music.name}})
+    const result = await prisma.recommendation.findUnique({ where: { name: music.name } })
     const addScore = await supertest(app).post(`/recommendations/${result.id}/upvote`).send()
-    const resultAddScore = await prisma.recommendation.findUnique({where:{name: music.name}})
+    const resultAddScore = await prisma.recommendation.findUnique({ where: { name: music.name } })
 
     expect(resultAddScore.score).toEqual(1)
     expect(addScore.status).toEqual(200)
   })
 })
 
-describe('POST /recommendations/:id/downvote', ()=>{
-  beforeEach(async()=>{
+describe('POST /recommendations/:id/downvote', () => {
+  beforeEach(async () => {
     await prisma.$executeRaw`TRUNCATE TABLE recommendations`;
   })
 
-  afterAll(async()=>{
+  afterAll(async () => {
     await prisma.$disconnect();
   })
 
-  it('should return downvote and 200', async()=>{
-    const music = {
-      name: "Falamansa - Xote dos Milagres",
-      youtubeLink: "https://www.youtube.com/watch?v=chwyjJbcs1Y"
-    }
+  it('should return downvote and 200', async () => {
+    const music = musicFactory()
 
-    await prisma.recommendation.create({data: {
-      name: music.name,
-      youtubeLink: music.youtubeLink
-    }})
+    await prisma.recommendation.create({ data: { ...music } })
 
-    const result = await prisma.recommendation.findUnique({where:{name: music.name}})
+    const result = await prisma.recommendation.findUnique({ where: { name: music.name } })
     const addScore = await supertest(app).post(`/recommendations/${result.id}/downvote`).send()
-    const resultRemoveScore = await prisma.recommendation.findUnique({where:{name: music.name}})
+    const resultRemoveScore = await prisma.recommendation.findUnique({ where: { name: music.name } })
 
     expect(resultRemoveScore.score).toEqual(-1)
     expect(addScore.status).toEqual(200)
   })
 
-  it('should exclude recomendation', async()=>{
-    const music = {
-      name: "Falamansa - Xote dos Milagres",
-      youtubeLink: "https://www.youtube.com/watch?v=chwyjJbcs1Y"
-    }
+  it('should exclude recomendation', async () => {
+    const music = musicFactory()
 
-    await prisma.recommendation.create({data: {
-      name: music.name,
-      youtubeLink: music.youtubeLink
-    }})
+    await prisma.recommendation.create({ data: { ...music } })
 
-    const result = await prisma.recommendation.findUnique({where:{name: music.name}})
+    const result = await prisma.recommendation.findUnique({ where: { name: music.name } })
 
-    for (let i = 0; i < 7; i++) {  
-      await supertest(app).post(`/recommendations/${result.id}/downvote`).send()
-    }
+    await scoreFactory(result.id, 7, 'downvote')
 
-    const resultRemoveScore = await prisma.recommendation.findUnique({where:{name: music.name}})
+    const resultRemoveScore = await prisma.recommendation.findUnique({ where: { name: music.name } })
 
     expect(resultRemoveScore).toBeNull()
   })
 })
 
-describe('GET /recommendations', ()=>{
-  beforeEach(async()=>{
+describe('GET /recommendations', () => {
+  beforeEach(async () => {
     await prisma.$executeRaw`TRUNCATE TABLE recommendations`;
   })
 
-  afterAll(async()=>{
+  afterAll(async () => {
     await prisma.$disconnect();
   })
 
-  it('should return music', async()=>{
-    const music = {
-      name: "Falamansa - Xote dos Milagres",
-      youtubeLink: "https://www.youtube.com/watch?v=chwyjJbcs1Y"
-    }
+  it('should return music', async () => {
+    const music = musicFactory()
 
-    await prisma.recommendation.create({data: {
-      name: music.name,
-      youtubeLink: music.youtubeLink
-    }})
+    await prisma.recommendation.create({ data: { ...music } })
 
     const result = await supertest(app).get('/recommendations')
 
     expect(result.body.length).toBeGreaterThan(0)
+  })
+})
+
+describe('GET /recommendations/:id', () => {
+  beforeEach(async () => {
+    await prisma.$executeRaw`TRUNCATE TABLE recommendations`;
+  })
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  })
+
+  it('should return the song of the selected id', async () => {
+    const music = musicFactory()
+
+    const createdMusic = await prisma.recommendation.create({ data: { ...music } })
+
+    const result = await supertest(app).get(`/recommendations/${createdMusic.id}`)
+
+    expect(result.body.id).toEqual(createdMusic.id)
+  })
+})
+
+describe('GET /recommendations/random', () => {
+  beforeEach(async () => {
+    await prisma.$executeRaw`TRUNCATE TABLE recommendations`;
+  })
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  })
+
+  it('should return 404 if there are no songs', async () => {
+
+    const result = await supertest(app).get('/recommendations/random')
+
+    expect(404).toEqual(result.status)
+  })
+})
+
+describe('GET /recommendations/top/:amount', () => {
+  beforeEach(async () => {
+    await prisma.$executeRaw`TRUNCATE TABLE recommendations`;
+  })
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  })
+
+  it('should return the songs with the highest score', async () => {
+    const music = musicFactory()
+    const createdMusic = await prisma.recommendation.create({ data: { ...music } })
+    await scoreFactory(createdMusic.id, 12, 'upvote')
+
+    const music1 = musicFactory()
+    const createdMusic1 = await prisma.recommendation.create({ data: { ...music1 } })
+    await scoreFactory(createdMusic1.id, 7, 'upvote')
+
+    const result = await supertest(app).get(`/recommendations/top/2`)
+
+    expect(result.body[0].score).toEqual(12)
   })
 })
