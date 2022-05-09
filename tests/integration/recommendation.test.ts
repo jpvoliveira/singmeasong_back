@@ -1,8 +1,8 @@
-import { prisma } from '../src/database.js'
+import { prisma } from '../../src/database.js'
 import supertest from 'supertest'
-import app from '../src/app.js'
-import musicFactory from './factories/musicFactory.js'
-import scoreFactory from './factories/scoreFactory.js'
+import app from '../../src/app.js'
+import musicFactory from '../factories/musicFactory.js'
+import scoreFactory from '../factories/scoreFactory.js'
 
 describe('POST /recommendations', () => {
   beforeEach(async () => {
@@ -160,6 +160,19 @@ describe('GET /recommendations/random', () => {
     const result = await supertest(app).get('/recommendations/random')
 
     expect(404).toEqual(result.status)
+  })
+
+  it('should return a random recommendation', async () => {
+    const recommendation = 
+      {
+        name: "House of the Rising Sun",
+        youtubeLink: "https://www.youtube.com/watch?v=4-43lLKaqBQ&list=RD4-43lLKaqBQ&start_radio=1&ab_channel=TheAnimalsTributeChannel",
+        score: Math.floor(Math.random() * 100)
+      }
+    const resultDb = await prisma.recommendation.create({data: { ...recommendation}})
+    const newRecommendation = {id: resultDb.id, ...recommendation}
+    const result = await supertest(app).get('/recommendations/random')
+    expect(result.body).toEqual(newRecommendation)
   })
 })
 
